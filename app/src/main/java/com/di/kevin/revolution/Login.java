@@ -11,32 +11,43 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.BaseAdapter;
-import android.widget.ListView;
-import android.widget.TextView;
-import java.util.ArrayList;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
 
-public class MainActivity extends Activity {
 
-    private static final String TAG = MainActivity.class.getSimpleName();
-    private ListView lvRoster;
+public class Login extends Activity implements ConnectedToServerListener, LoginStateListener{
+
+    private static final String TAG = Login.class.getSimpleName();
+    private Button btnLogin;
+    private EditText etUsername;
+    private EditText etPassword;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_login);
 
-        lvRoster = (ListView)findViewById(R.id.lv_roster);
-        lvRoster.setAdapter(rosterAdapter);
+        etUsername = (EditText)findViewById(R.id.et_username);
+        etPassword = (EditText)findViewById(R.id.et_password);
 
-        lvRoster.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        btnLogin = (Button)findViewById(R.id.btn_login);
+        btnLogin.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+            public void onClick(View view) {
+                if (mBound) {
+                    if (mService.isConnectedToServer()) {
+                        String username = etUsername.getText().toString();
+                        String password = etPassword.getText().toString();
 
+                        mService.login(username, password);
+                    } else {
+                        Toast.makeText(Login.this, "Not connect to server", Toast.LENGTH_LONG).show();
+                    }
+                }
             }
         });
+        btnLogin.setEnabled(false);
     }
 
     @Override
@@ -47,15 +58,8 @@ public class MainActivity extends Activity {
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        unbindService(mConnection);
-    }
-
     private MessagingService mService;
     private boolean mBound;
-    private ArrayList<String> rosterEntries;
     private ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
@@ -66,10 +70,9 @@ public class MainActivity extends Activity {
             // We've bound to LocalService, cast the IBinder and get LocalService instance
             MessagingService.MessagingBinder binder = (MessagingService.MessagingBinder) service;
             mService = binder.getService();
+            mService.setConnectedToServerListener(Login.this);
+            mService.setLoginStateListener(Login.this);
             mBound = true;
-
-            rosterEntries = mService.getRoster();
-            lvRoster.invalidate();
         }
 
         @Override
@@ -83,9 +86,10 @@ public class MainActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
+        getMenuInflater().inflate(R.menu.menu_login, menu);
         return true;
     }
+
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -102,37 +106,24 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    BaseAdapter rosterAdapter = new BaseAdapter() {
-        @Override
-        public int getCount() {
-            if (rosterEntries != null) {
-                return rosterEntries.size();
-            } else {
-                return 0;
-            }
+    @Override
+    protected void onStop() {
+        super.onStop();
+        unbindService(mConnection);
+    }
+
+    @Override
+    public void onConnectedToServer(boolean result) {
+        btnLogin.setEnabled(true);
+    }
+
+    @Override
+    public void onLogin(boolean result) {
+        if (result) {
+            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
+            finish();
+        } else {
+            Toast.makeText(this, getString(R.string.login_failed), Toast.LENGTH_LONG).show();
         }
-
-        @Override
-        public Object getItem(int i) {
-            return null;
-        }
-
-        @Override
-        public long getItemId(int i) {
-            return 0;
-        }
-
-        @Override
-        public View getView(int position, View view, ViewGroup viewGroup) {
-
-            if (view == null) {
-                view = getLayoutInflater().inflate(R.layout.roster_item, null);
-            }
-
-            ((TextView)view.findViewById(R.id.tv_roster_item)).setText(rosterEntries.get(position));
-
-
-            return view;
-        }
-    };
+    }
 }
